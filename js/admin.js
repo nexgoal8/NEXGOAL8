@@ -8,7 +8,7 @@ const ADMIN_CREDENTIALS = [
 ];
 
 const SESSION_KEY = "nexgoal_admin_session";
-const PRODUCTS_API = "NEXGOAL_FIREBASE_URL_HERE"; // Replace after Firebase setup
+const PRODUCTS_API = "https://nexgoal8-cd425-default-rtdb.firebaseio.com/products.json";
 
 let products = [];
 let editingId = null;
