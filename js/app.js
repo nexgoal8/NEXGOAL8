@@ -4,7 +4,7 @@
 
 const WHATSAPP_NUMBERS = ["263788018611", "263779998833"];
 const STORE_NAME = "NexGoal Soccer Wear";
-const PRODUCTS_API = "NEXGOAL_FIREBASE_URL_HERE"; // Replace after Firebase setup
+const PRODUCTS_API = "https://nexgoal8-cd425-default-rtdb.firebaseio.com/products.json";
 
 let products = [];
 let cart = JSON.parse(localStorage.getItem('nexgoal-cart') || '[]');
