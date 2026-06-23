@@ -1,0 +1,4 @@
+User-agent: *
+Disallow: /admin.html
+
+Sitemap: https://yourusername.github.io/nexgoal-store/sitemap.xml
