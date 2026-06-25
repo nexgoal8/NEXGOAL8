@@ -226,12 +226,16 @@ function openEditProduct(id) {
   document.getElementById("f-price").value       = p.price;
   document.getElementById("f-category").value    = p.category;
   document.getElementById("f-stock").value       = p.stock ?? 10;
-  document.getElementById("f-image").value       = p.image && !p.image.startsWith("data:") ? p.image : "";
   document.getElementById("f-description").value = p.description;
   document.getElementById("f-featured").checked  = p.featured;
   document.getElementById("f-bestseller").checked = p.bestSeller;
+  const imgs = Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image || ""];
+  document.getElementById("f-image").value  = imgs[0] && !imgs[0].startsWith("data:") ? imgs[0] : "";
+  document.getElementById("f-image2").value = imgs[1] || "";
+  document.getElementById("f-image3").value = imgs[2] || "";
+  document.getElementById("f-image4").value = imgs[3] || "";
   resetPhotoPreview();
-  if (p.image) showPhotoPreview(p.image);
+  if (imgs[0]) showPhotoPreview(imgs[0]);
   document.getElementById("product-modal").classList.add("open");
 }
 
@@ -250,17 +254,26 @@ function saveProduct() {
   const featured   = document.getElementById("f-featured").checked;
   const bestSeller = document.getElementById("f-bestseller").checked;
   const urlField   = document.getElementById("f-image").value.trim();
-  let image = currentPhotoData || urlField;
-  if (!image && editingId) { const ex = products.find(p => p.id === editingId); image = ex ? ex.image : ""; }
-  if (!image) image = `https://placehold.co/600x600/1A1A1A/CC0000?text=${encodeURIComponent(name || "NG")}`;
+  let mainImage = currentPhotoData || urlField;
+  if (!mainImage && editingId) {
+    const ex = products.find(p => p.id === editingId);
+    const exImgs = Array.isArray(ex?.images) ? ex.images : [ex?.image || ""];
+    mainImage = exImgs[0] || "";
+  }
+  if (!mainImage) mainImage = `https://placehold.co/600x600/1A1A1A/CC0000?text=${encodeURIComponent(name || "NG")}`;
+  const extra = ["f-image2","f-image3","f-image4"]
+    .map(id => document.getElementById(id).value.trim())
+    .filter(Boolean);
+  const images = [mainImage, ...extra];
+  const image = mainImage;
   if (!name || !price || !category) { showAdminToast("⚠️ Please fill in all required fields.", "error"); return; }
   if (editingId) {
     const idx = products.findIndex(p => p.id === editingId);
-    products[idx] = { ...products[idx], name, price, category, stock, image, description: desc, featured, bestSeller };
+    products[idx] = { ...products[idx], name, price, category, stock, image, images, description: desc, featured, bestSeller };
     showAdminToast("✅ Product updated!", "success");
   } else {
     const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
-    products.push({ id: newId, name, price, category, stock, image, description: desc, featured, bestSeller, rating: 4.5, reviews: 0 });
+    products.push({ id: newId, name, price, category, stock, image, images, description: desc, featured, bestSeller, rating: 4.5, reviews: 0 });
     showAdminToast("✅ Product added!", "success");
   }
   saveProducts(); refreshAll(); closeProductModal();

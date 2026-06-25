@@ -91,13 +91,27 @@ function doSearch(query) {
   document.getElementById('products-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ---------- Product Modal ----------
+// ---------- Product Modal with Gallery ----------
 function openProduct(id) {
   const p = products.find(x => x.id === id);
   if (!p) return;
   const modal = document.getElementById('product-modal');
-  modal.querySelector('.modal-img img').src = p.image;
-  modal.querySelector('.modal-img img').alt = p.name;
+  const imgs = Array.isArray(p.images) && p.images.length > 0
+    ? p.images : [p.image].filter(Boolean);
+  const mainImg = document.getElementById('gallery-main-img');
+  mainImg.src = imgs[0] || '';
+  mainImg.alt = p.name;
+  const thumbsEl = document.getElementById('gallery-thumbs');
+  if (imgs.length > 1) {
+    thumbsEl.innerHTML = imgs.map((src, i) => `
+      <img class="gallery-thumb ${i === 0 ? 'active' : ''}" src="${src}" alt="${p.name} view ${i+1}"
+        onclick="switchGalleryImage(this, '${src}')">
+    `).join('');
+    thumbsEl.style.display = 'flex';
+  } else {
+    thumbsEl.innerHTML = '';
+    thumbsEl.style.display = 'none';
+  }
   modal.querySelector('.modal-category').textContent = p.category;
   modal.querySelector('.modal-name').textContent = p.name;
   modal.querySelector('.modal-price').textContent = `$${p.price.toFixed(2)}`;
@@ -109,9 +123,29 @@ function openProduct(id) {
   document.body.style.overflow = 'hidden';
 }
 
+function switchGalleryImage(thumb, src) {
+  document.getElementById('gallery-main-img').src = src;
+  document.querySelectorAll('.gallery-thumb').forEach(t => t.classList.remove('active'));
+  thumb.classList.add('active');
+}
+
 function closeModal() {
   document.getElementById('product-modal').classList.remove('open');
   document.body.style.overflow = '';
+}
+
+function openLightbox(src) {
+  const lb = document.getElementById('lightbox');
+  const img = document.getElementById('lightbox-img');
+  img.src = src;
+  img.classList.remove('zoomed');
+  lb.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.body.style.overflow = 'hidden';
 }
 
 function changeModalQty(delta) {
