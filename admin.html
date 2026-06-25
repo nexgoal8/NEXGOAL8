@@ -277,7 +277,13 @@
               <button type="button" id="photo-remove-btn" class="topbar-btn" style="width:100%;justify-content:center;background:rgba(204,0,0,0.15);color:#CC0000;display:none" onclick="removePhoto()">✕ Remove Photo</button>
             </div>
           </div>
-          <input class="admin-input" id="f-image" placeholder="Or paste an image URL here" style="margin-top:8px" oninput="handleUrlInput(this.value)">
+          <input class="admin-input" id="f-image" placeholder="Main image URL (required)" style="margin-top:8px" oninput="handleUrlInput(this.value)">
+          <div style="margin-top:10px">
+            <div style="font-size:0.78rem;font-weight:600;color:#aaa;margin-bottom:6px">📸 Additional image URLs (gallery — up to 3 more angles):</div>
+            <input class="admin-input" id="f-image2" placeholder="Image 2 URL (optional — e.g. side angle)" style="margin-bottom:6px">
+            <input class="admin-input" id="f-image3" placeholder="Image 3 URL (optional — e.g. back view)" style="margin-bottom:6px">
+            <input class="admin-input" id="f-image4" placeholder="Image 4 URL (optional — e.g. detail shot)">
+          </div>
         </div>
         <div class="form-group full"><label class="admin-label">Description</label><textarea class="admin-textarea" id="f-description" placeholder="Product description…"></textarea></div>
         <div class="form-row">
