@@ -121,6 +121,7 @@ function openProduct(id) {
   modal.dataset.productId = id;
   modal.classList.add('open');
   document.body.style.overflow = 'hidden';
+  history.pushState({ modal: 'product' }, '');
 }
 
 function switchGalleryImage(thumb, src) {
@@ -141,6 +142,7 @@ function openLightbox(src) {
   img.classList.remove('zoomed');
   lb.classList.add('open');
   document.body.style.overflow = 'hidden';
+  history.pushState({ modal: 'lightbox' }, '');
 }
 
 function closeLightbox() {
@@ -219,7 +221,7 @@ function renderCartItems() {
   if (totalEl) totalEl.textContent = `$${total.toFixed(2)}`;
 }
 
-function openCart() { document.getElementById('cart-drawer').classList.add('open'); document.getElementById('cart-overlay').classList.add('open'); document.body.style.overflow = 'hidden'; renderCartItems(); }
+function openCart() { document.getElementById('cart-drawer').classList.add('open'); document.getElementById('cart-overlay').classList.add('open'); document.body.style.overflow = 'hidden'; renderCartItems(); history.pushState({ modal: 'cart' }, ''); }
 function closeCart() { document.getElementById('cart-drawer').classList.remove('open'); document.getElementById('cart-overlay').classList.remove('open'); document.body.style.overflow = ''; }
 
 function checkoutWhatsApp() {
@@ -252,7 +254,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.querySelectorAll('.search-input').forEach(inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(inp.value); }));
   document.querySelectorAll('.search-btn').forEach(btn => btn.addEventListener('click', () => { const inp = btn.closest('.nav-search, .hero-search')?.querySelector('input'); if (inp) doSearch(inp.value); }));
   document.getElementById('product-modal')?.addEventListener('click', function(e) { if (e.target === this) closeModal(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeCart(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeCart(); closeLightbox(); } });
+
+  // Phone back button — close modals instead of leaving page
+  window.addEventListener('popstate', function(e) {
+    if (document.getElementById('lightbox').classList.contains('open')) {
+      closeLightbox();
+    } else if (document.getElementById('product-modal').classList.contains('open')) {
+      closeModal();
+    } else if (document.getElementById('cart-drawer').classList.contains('open')) {
+      closeCart();
+    }
+  });
 });
 
 window.addEventListener('scroll', () => { const btn = document.getElementById('scroll-top'); if (btn) btn.classList.toggle('visible', window.scrollY > 400); });
