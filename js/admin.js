@@ -81,30 +81,55 @@ function togglePassword() {
 // =============================================
 //   PRODUCTS — Firebase REST API
 // =============================================
+let productsLoaded = false; // safety flag — never save until products are confirmed loaded
+
 function loadProducts() {
+  productsLoaded = false;
   fetch(PRODUCTS_API)
     .then(r => r.json())
     .then(data => {
-      products = Array.isArray(data) ? data : Object.values(data || {});
+      const loaded = Array.isArray(data) ? data : Object.values(data || {});
+      if (loaded.length > 0) {
+        products = loaded;
+        productsLoaded = true;
+      } else {
+        products = [];
+        productsLoaded = true;
+      }
       refreshAll();
     })
     .catch(() => {
-      fetch("data/products.json").then(r => r.json()).then(data => {
-        products = data.map(p => ({ ...p, stock: p.stock ?? 10 }));
-        refreshAll();
-      }).catch(() => {
-        products = getDefaultProducts();
-        refreshAll();
-      });
+      showAdminToast("⚠️ Could not load products. Check internet connection.", "error");
+      productsLoaded = false;
+      products = [];
+      refreshAll();
     });
 }
 
 function saveProducts() {
+  // Safety check — never save if products haven't been confirmed loaded from Firebase
+  if (!productsLoaded) {
+    showAdminToast("⚠️ Cannot save — products not fully loaded yet.", "error");
+    return;
+  }
+
+  // Safety check — never overwrite database with empty array unless user explicitly deleted all
+  if (products.length === 0) {
+    const confirmed = confirm("⚠️ You are about to clear ALL products from the database. Are you sure?");
+    if (!confirmed) return;
+  }
+
   fetch(PRODUCTS_API, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(products)
-  }).catch(() => showAdminToast("⚠️ Could not save changes. Check internet connection.", "error"));
+  })
+  .then(r => {
+    if (!r.ok) throw new Error("Save failed: " + r.status);
+  })
+  .catch((err) => {
+    showAdminToast("⚠️ Could not save changes: " + err.message, "error");
+  });
 }
 
 function refreshAll() {
