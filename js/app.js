@@ -14,8 +14,15 @@ let currentFilter = 'All';
 async function loadProducts() {
   try {
     const res = await fetch(PRODUCTS_API);
+    if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
-    products = Array.isArray(data) ? data : Object.values(data || {});
+    if (Array.isArray(data)) {
+      products = data.filter(Boolean);
+    } else if (data && typeof data === "object") {
+      products = Object.values(data).filter(Boolean);
+    } else {
+      products = [];
+    }
     renderProducts(products);
   } catch (e) {
     console.warn('Could not load live products, using local data.');
