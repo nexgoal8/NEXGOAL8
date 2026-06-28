@@ -254,13 +254,30 @@ function openEditProduct(id) {
   document.getElementById("f-description").value = p.description;
   document.getElementById("f-featured").checked  = p.featured;
   document.getElementById("f-bestseller").checked = p.bestSeller;
+
   const imgs = Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image || ""];
-  document.getElementById("f-image").value  = imgs[0] && !imgs[0].startsWith("data:") ? imgs[0] : "";
-  document.getElementById("f-image2").value = imgs[1] || "";
-  document.getElementById("f-image3").value = imgs[2] || "";
-  document.getElementById("f-image4").value = imgs[3] || "";
+
+  // Reset extra photo previews and reload from saved images
+  extraPhotoData = { 2: null, 3: null, 4: null };
+  [2, 3, 4].forEach(slot => {
+    const img = document.getElementById("prev" + slot + "-img");
+    const ph  = document.getElementById("prev" + slot + "-ph");
+    const inp = document.getElementById("f-photo" + slot);
+    if (img) { img.src = ""; img.style.display = "none"; }
+    if (ph)  { ph.style.display = "block"; }
+    if (inp) { inp.value = ""; }
+    if (imgs[slot - 1]) {
+      extraPhotoData[slot] = imgs[slot - 1];
+      if (img) { img.src = imgs[slot - 1]; img.style.display = "block"; }
+      if (ph)  { ph.style.display = "none"; }
+    }
+  });
+
   resetPhotoPreview();
   if (imgs[0]) showPhotoPreview(imgs[0]);
+  const fImage = document.getElementById("f-image");
+  if (fImage) fImage.value = imgs[0] && !imgs[0].startsWith("data:") ? imgs[0] : "";
+
   document.getElementById("product-modal").classList.add("open");
 }
 
@@ -278,20 +295,26 @@ function saveProduct() {
   const desc       = document.getElementById("f-description").value.trim();
   const featured   = document.getElementById("f-featured").checked;
   const bestSeller = document.getElementById("f-bestseller").checked;
-  const urlField   = document.getElementById("f-image").value.trim();
+
+  if (!name || !price || !category) { showAdminToast("⚠️ Please fill in name, price and category.", "error"); return; }
+
+  const urlField = document.getElementById("f-image") ? document.getElementById("f-image").value.trim() : "";
   let mainImage = currentPhotoData || urlField;
   if (!mainImage && editingId) {
     const ex = products.find(p => p.id === editingId);
     const exImgs = Array.isArray(ex?.images) ? ex.images : [ex?.image || ""];
     mainImage = exImgs[0] || "";
   }
-  if (!mainImage) mainImage = `https://placehold.co/600x600/1A1A1A/CC0000?text=${encodeURIComponent(name || "NG")}`;
-  const extra = ["f-image2","f-image3","f-image4"]
-    .map(id => document.getElementById(id).value.trim())
+  if (!mainImage) mainImage = `https://placehold.co/600x600/1A1A1A/CC0000?text=${encodeURIComponent(name)}`;
+
+  // Safely get extra images from device uploads
+  const extra = [2, 3, 4]
+    .map(slot => extraPhotoData[slot] || "")
     .filter(Boolean);
+
   const images = [mainImage, ...extra];
   const image = mainImage;
-  if (!name || !price || !category) { showAdminToast("⚠️ Please fill in all required fields.", "error"); return; }
+
   if (editingId) {
     const idx = products.findIndex(p => p.id === editingId);
     products[idx] = { ...products[idx], name, price, category, stock, image, images, description: desc, featured, bestSeller };
@@ -307,6 +330,8 @@ function saveProduct() {
 // =============================================
 //   PHOTO UPLOAD
 // =============================================
+let extraPhotoData = { 2: null, 3: null, 4: null };
+
 function handlePhotoSelect(event) {
   const file = event.target.files[0];
   if (!file || !file.type.startsWith("image/")) { showAdminToast("⚠️ Please select an image file.", "error"); return; }
@@ -319,6 +344,33 @@ function handlePhotoSelect(event) {
     });
   };
   reader.readAsDataURL(file);
+}
+
+function handleExtraPhoto(event, slot) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) { showAdminToast("⚠️ Please select an image file.", "error"); return; }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    compressImage(e.target.result, file.size, (compressed) => {
+      extraPhotoData[slot] = compressed;
+      const img = document.getElementById("prev" + slot + "-img");
+      const ph  = document.getElementById("prev" + slot + "-ph");
+      if (img) { img.src = compressed; img.style.display = "block"; }
+      if (ph)  { ph.style.display = "none"; }
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeExtraPhoto(slot) {
+  extraPhotoData[slot] = null;
+  const img = document.getElementById("prev" + slot + "-img");
+  const ph  = document.getElementById("prev" + slot + "-ph");
+  const inp = document.getElementById("f-photo" + slot);
+  if (img) { img.src = ""; img.style.display = "none"; }
+  if (ph)  { ph.style.display = "block"; }
+  if (inp) { inp.value = ""; }
 }
 
 function compressImage(dataUrl, originalSize, callback) {
