@@ -79,34 +79,41 @@ function togglePassword() {
 }
 
 // =============================================
-//   PRODUCTS — Firebase REST API (bulletproof)
+//   PRODUCTS — Firebase REST API (stable object storage)
 // =============================================
 let productsLoaded = false;
 let lastKnownCount = 0;
 
+// Use object storage keyed by product ID for reliability
+// e.g. { "p1": {...}, "p2": {...} } instead of array
+const PRODUCTS_DB_URL = "https://nexgoal8-cd425-default-rtdb.firebaseio.com/products.json";
+
 function loadProducts() {
   productsLoaded = false;
-  fetch(PRODUCTS_API)
+  fetch(PRODUCTS_DB_URL)
     .then(r => {
       if (!r.ok) throw new Error("HTTP " + r.status);
       return r.json();
     })
     .then(data => {
       let loaded = [];
-      if (Array.isArray(data)) {
+      if (data && typeof data === "object" && !Array.isArray(data)) {
+        // Object format: { "p1": {...}, "p2": {...} }
+        loaded = Object.values(data).filter(p => p && p.id);
+      } else if (Array.isArray(data)) {
         loaded = data.filter(Boolean);
-      } else if (data && typeof data === "object") {
-        loaded = Object.values(data).filter(Boolean);
       }
       if (loaded.length > 0) {
         products = loaded;
         lastKnownCount = loaded.length;
         productsLoaded = true;
       } else if (lastKnownCount === 0) {
+        // Genuinely empty database — first time setup
         products = [];
         productsLoaded = true;
       } else {
-        showAdminToast("⚠️ Warning: Firebase returned empty. Keeping previous data. Do not save.", "error");
+        // Had products before but got empty — suspicious, block saves
+        showAdminToast("⚠️ Warning: Database returned empty unexpectedly. Please refresh.", "error");
         productsLoaded = false;
       }
       refreshAll();
@@ -120,42 +127,40 @@ function loadProducts() {
 
 function saveProducts() {
   if (!productsLoaded) {
-    showAdminToast("⚠️ Cannot save — data not fully loaded. Refresh and try again.", "error");
+    showAdminToast("⚠️ Cannot save — products not loaded yet. Refresh first.", "error");
     return;
   }
-  if (lastKnownCount > 5 && products.length === 0) {
-    showAdminToast("⚠️ Blocked: Cannot save empty list when database previously had products.", "error");
+  if (lastKnownCount > 3 && products.length === 0) {
+    showAdminToast("⚠️ Blocked suspicious empty save. Refresh and try again.", "error");
     return;
   }
 
-  // Save each product individually — one bad save can NEVER wipe everything
-  const savePromises = products.map((product, index) =>
-    fetch(PRODUCTS_API.replace(".json", "/" + index + ".json"), {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(product)
-    })
-  );
+  // Convert array to object keyed by product ID for stable Firebase storage
+  // { "p1": {id:1, name:...}, "p2": {id:2, name:...} }
+  const dataToSave = {};
+  products.forEach(p => {
+    dataToSave["p" + p.id] = p;
+  });
 
-  Promise.all(savePromises)
-    .then(responses => {
-      const failed = responses.filter(r => !r.ok);
-      if (failed.length > 0) {
-        showAdminToast("⚠️ Some products may not have saved. Check connection.", "error");
-      } else {
-        lastKnownCount = products.length;
-      }
-    })
-    .catch(err => {
-      showAdminToast("⚠️ Save error: " + err.message, "error");
-    });
+  fetch(PRODUCTS_DB_URL, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(dataToSave)
+  })
+  .then(r => {
+    if (!r.ok) throw new Error("Save failed: HTTP " + r.status);
+    lastKnownCount = products.length;
+  })
+  .catch(err => {
+    showAdminToast("⚠️ Could not save: " + err.message, "error");
+  });
 }
 
 function deleteAllProductsFromDB() {
-  return fetch(PRODUCTS_API, {
+  return fetch(PRODUCTS_DB_URL, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify([])
+    body: JSON.stringify({})
   });
 }
 

@@ -16,10 +16,11 @@ async function loadProducts() {
     const res = await fetch(PRODUCTS_API);
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
-    if (Array.isArray(data)) {
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      // New object format: { "p1": {...}, "p2": {...} }
+      products = Object.values(data).filter(p => p && p.id);
+    } else if (Array.isArray(data)) {
       products = data.filter(Boolean);
-    } else if (data && typeof data === "object") {
-      products = Object.values(data).filter(Boolean);
     } else {
       products = [];
     }
