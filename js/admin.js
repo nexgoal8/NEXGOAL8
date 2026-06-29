@@ -102,7 +102,7 @@ async function loadProducts() {
     if (!res.ok) throw new Error("JSONBin fetch failed: " + res.status);
     const json = await res.json();
     // JSONBin wraps the payload: { record: <your data>, metadata: {...} }
-    const data = json.record;
+    const data = Array.isArray(json) ? json : (json.record || []);
     const loaded = Array.isArray(data) ? data : Object.values(data || {});
     products = loaded;
     productsLoaded = true;
