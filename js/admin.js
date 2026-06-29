@@ -88,10 +88,8 @@ function togglePassword() {
 // =============================================
 //   PRODUCTS — JSONBin.io REST API
 // =============================================
-let productsLoaded = false; // safety flag — never save until products are confirmed loaded
 
 async function loadProducts() {
-  productsLoaded = false;
   try {
     const res = await fetch(`${PRODUCTS_API}/latest`, {
       headers: {
@@ -105,23 +103,15 @@ async function loadProducts() {
     const data = Array.isArray(json) ? json : (json.record || []);
     const loaded = Array.isArray(data) ? data : Object.values(data || {});
     products = loaded;
-    productsLoaded = true;
     refreshAll();
   } catch (err) {
     showAdminToast("⚠️ Could not load products: " + err.message, "error");
-    productsLoaded = false;
-    products = [];
+      products = [];
     refreshAll();
   }
 }
 
 async function saveProducts() {
-  // Safety check — never save if products haven't been confirmed loaded
-  if (!productsLoaded) {
-    showAdminToast("⚠️ Cannot save — products not fully loaded yet.", "error");
-    return;
-  }
-
   // Safety check — never overwrite database with empty array unless user explicitly deleted all
   if (products.length === 0) {
     const confirmed = confirm("⚠️ You are about to clear ALL products from the database. Are you sure?");
