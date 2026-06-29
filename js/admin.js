@@ -8,7 +8,14 @@ const ADMIN_CREDENTIALS = [
 ];
 
 const SESSION_KEY = "nexgoal_admin_session";
-const PRODUCTS_API = "https://nexgoal8-cd425-default-rtdb.firebaseio.com/products.json";
+
+// ── JSONBin.io config ──────────────────────────────────────────────────────
+// Must match the same values in app.js
+const JSONBIN_BIN_ID  = "6a42cd7bf5f4af5e2943a739";   // e.g. "6659f3e1acd3cb34a8560e23"
+const JSONBIN_API_KEY = "$2a$10$V/hPd2mOVYeSSCg3AkzxeueXRp8Dkomi8NKhQfWHVGZktj05qY66G";   // X-Master-Key from your account
+const JSONBIN_BASE    = "https://api.jsonbin.io/v3/b";
+const PRODUCTS_API    = `${JSONBIN_BASE}/${JSONBIN_BIN_ID}`;
+// ──────────────────────────────────────────────────────────────────────────
 
 let products = [];
 let editingId = null;
@@ -79,89 +86,58 @@ function togglePassword() {
 }
 
 // =============================================
-//   PRODUCTS — Firebase REST API (stable object storage)
+//   PRODUCTS — JSONBin.io REST API
 // =============================================
-let productsLoaded = false;
-let lastKnownCount = 0;
+let productsLoaded = false; // safety flag — never save until products are confirmed loaded
 
-// Use object storage keyed by product ID for reliability
-// e.g. { "p1": {...}, "p2": {...} } instead of array
-const PRODUCTS_DB_URL = "https://nexgoal8-cd425-default-rtdb.firebaseio.com/products.json";
-
-function loadProducts() {
+async function loadProducts() {
   productsLoaded = false;
-  fetch(PRODUCTS_DB_URL)
-    .then(r => {
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      return r.json();
-    })
-    .then(data => {
-      let loaded = [];
-      if (data && typeof data === "object" && !Array.isArray(data)) {
-        // Object format: { "p1": {...}, "p2": {...} }
-        loaded = Object.values(data).filter(p => p && p.id);
-      } else if (Array.isArray(data)) {
-        loaded = data.filter(Boolean);
-      }
-      if (loaded.length > 0) {
-        products = loaded;
-        lastKnownCount = loaded.length;
-        productsLoaded = true;
-      } else if (lastKnownCount === 0) {
-        // Genuinely empty database — first time setup
-        products = [];
-        productsLoaded = true;
-      } else {
-        // Had products before but got empty — suspicious, block saves
-        showAdminToast("⚠️ Warning: Database returned empty unexpectedly. Please refresh.", "error");
-        productsLoaded = false;
-      }
-      refreshAll();
-    })
-    .catch(err => {
-      showAdminToast("⚠️ Could not load products: " + err.message, "error");
-      productsLoaded = false;
-      refreshAll();
+  try {
+    const res = await fetch(`${PRODUCTS_API}/latest`, {
+      headers: { "X-Master-Key": JSONBIN_API_KEY }
     });
+    if (!res.ok) throw new Error("JSONBin fetch failed: " + res.status);
+    const json = await res.json();
+    // JSONBin wraps the payload: { record: <your data>, metadata: {...} }
+    const data = json.record;
+    const loaded = Array.isArray(data) ? data : Object.values(data || {});
+    products = loaded;
+    productsLoaded = true;
+    refreshAll();
+  } catch (err) {
+    showAdminToast("⚠️ Could not load products: " + err.message, "error");
+    productsLoaded = false;
+    products = [];
+    refreshAll();
+  }
 }
 
-function saveProducts() {
+async function saveProducts() {
+  // Safety check — never save if products haven't been confirmed loaded
   if (!productsLoaded) {
-    showAdminToast("⚠️ Cannot save — products not loaded yet. Refresh first.", "error");
-    return;
-  }
-  if (lastKnownCount > 3 && products.length === 0) {
-    showAdminToast("⚠️ Blocked suspicious empty save. Refresh and try again.", "error");
+    showAdminToast("⚠️ Cannot save — products not fully loaded yet.", "error");
     return;
   }
 
-  // Convert array to object keyed by product ID for stable Firebase storage
-  // { "p1": {id:1, name:...}, "p2": {id:2, name:...} }
-  const dataToSave = {};
-  products.forEach(p => {
-    dataToSave["p" + p.id] = p;
-  });
+  // Safety check — never overwrite database with empty array unless user explicitly deleted all
+  if (products.length === 0) {
+    const confirmed = confirm("⚠️ You are about to clear ALL products from the database. Are you sure?");
+    if (!confirmed) return;
+  }
 
-  fetch(PRODUCTS_DB_URL, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(dataToSave)
-  })
-  .then(r => {
-    if (!r.ok) throw new Error("Save failed: HTTP " + r.status);
-    lastKnownCount = products.length;
-  })
-  .catch(err => {
-    showAdminToast("⚠️ Could not save: " + err.message, "error");
-  });
-}
-
-function deleteAllProductsFromDB() {
-  return fetch(PRODUCTS_DB_URL, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({})
-  });
+  try {
+    const res = await fetch(PRODUCTS_API, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Master-Key": JSONBIN_API_KEY
+      },
+      body: JSON.stringify(products)
+    });
+    if (!res.ok) throw new Error("Save failed: " + res.status);
+  } catch (err) {
+    showAdminToast("⚠️ Could not save changes: " + err.message, "error");
+  }
 }
 
 function refreshAll() {
@@ -339,7 +315,6 @@ function saveProduct() {
   }
   if (!mainImage) mainImage = `https://placehold.co/600x600/1A1A1A/CC0000?text=${encodeURIComponent(name)}`;
 
-  // Safely get extra images from device uploads
   const extra = [2, 3, 4]
     .map(slot => extraPhotoData[slot] || "")
     .filter(Boolean);
@@ -566,14 +541,6 @@ function showAdminToast(msg, type = "success") {
 }
 
 function toggleSidebar() { document.getElementById("sidebar").classList.toggle("open"); }
-
-function getDefaultProducts() {
-  return [
-    { id:1, name:"Arsenal Jersey", price:10, category:"T-Shirts", image:"https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=600&q=80", description:"Premium jersey.", featured:true, bestSeller:true, rating:4.9, reviews:64, stock:20 },
-    { id:2, name:"Man United Jersey", price:10, category:"T-Shirts", image:"https://images.unsplash.com/photo-1518091043644-c1d4457512c6?w=600&q=80", description:"Classic jersey.", featured:true, bestSeller:true, rating:4.8, reviews:58, stock:18 },
-    { id:9, name:"Arsenal Tracksuit", price:25, category:"Tracksuits", image:"https://images.unsplash.com/photo-1556906781-9a412961a28c?w=600&q=80", description:"Full tracksuit.", featured:true, bestSeller:true, rating:4.9, reviews:44, stock:8 },
-  ];
-}
 
 document.addEventListener("DOMContentLoaded", () => {
   checkAuth();

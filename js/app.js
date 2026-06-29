@@ -4,7 +4,16 @@
 
 const WHATSAPP_NUMBERS = ["263788018611", "263779998833"];
 const STORE_NAME = "NexGoal Soccer Wear";
-const PRODUCTS_API = "https://nexgoal8-cd425-default-rtdb.firebaseio.com/products.json";
+
+// ── JSONBin.io config ──────────────────────────────────────────────────────
+// 1. Create a free account at https://jsonbin.io
+// 2. Create a bin with your products array (or an empty [])
+// 3. Paste your Bin ID and API key below
+const JSONBIN_BIN_ID  = "6a42cd7bf5f4af5e2943a739";   // e.g. "6659f3e1acd3cb34a8560e23"
+const JSONBIN_API_KEY = "$2a$10$V/hPd2mOVYeSSCg3AkzxeueXRp8Dkomi8NKhQfWHVGZktj05qY66G";   // X-Master-Key from your account
+const JSONBIN_BASE    = "https://api.jsonbin.io/v3/b";
+const PRODUCTS_API    = `${JSONBIN_BASE}/${JSONBIN_BIN_ID}`;
+// ──────────────────────────────────────────────────────────────────────────
 
 let products = [];
 let cart = JSON.parse(localStorage.getItem('nexgoal-cart') || '[]');
@@ -13,20 +22,17 @@ let currentFilter = 'All';
 // ---------- Load Products ----------
 async function loadProducts() {
   try {
-    const res = await fetch(PRODUCTS_API);
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const data = await res.json();
-    if (data && typeof data === "object" && !Array.isArray(data)) {
-      // New object format: { "p1": {...}, "p2": {...} }
-      products = Object.values(data).filter(p => p && p.id);
-    } else if (Array.isArray(data)) {
-      products = data.filter(Boolean);
-    } else {
-      products = [];
-    }
+    const res = await fetch(`${PRODUCTS_API}/latest`, {
+      headers: { "X-Master-Key": JSONBIN_API_KEY }
+    });
+    if (!res.ok) throw new Error("JSONBin fetch failed: " + res.status);
+    const json = await res.json();
+    // JSONBin wraps the payload in { record: <your data> }
+    const data = json.record;
+    products = Array.isArray(data) ? data : Object.values(data || {});
     renderProducts(products);
   } catch (e) {
-    console.warn('Could not load live products, using local data.');
+    console.warn('Could not load live products, using local data.', e);
     try {
       const res2 = await fetch('data/products.json');
       products = await res2.json();
