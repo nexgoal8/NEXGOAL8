@@ -11,7 +11,7 @@ const SESSION_KEY = "nexgoal_admin_session";
 
 // ── JSONBin.io config ──────────────────────────────────────────────────────
 // Must match the same values in app.js
-const JSONBIN_BIN_ID  = "6a42cd7bf5f4af5e2943a739";   // e.g. "6659f3e1acd3cb34a8560e23"
+const JSONBIN_BIN_ID  = "6a42d550da38895dfe123a39";   // e.g. "6659f3e1acd3cb34a8560e23"
 const JSONBIN_API_KEY = "$2a$10$V/hPd2mOVYeSSCg3AkzxeueXRp8Dkomi8NKhQfWHVGZktj05qY66G";   // X-Master-Key from your account
 const JSONBIN_BASE    = "https://api.jsonbin.io/v3/b";
 const PRODUCTS_API    = `${JSONBIN_BASE}/${JSONBIN_BIN_ID}`;
@@ -94,7 +94,10 @@ async function loadProducts() {
   productsLoaded = false;
   try {
     const res = await fetch(`${PRODUCTS_API}/latest`, {
-      headers: { "X-Master-Key": JSONBIN_API_KEY }
+      headers: {
+        "X-Master-Key": JSONBIN_API_KEY,
+        "X-Bin-Meta": "false"
+      }
     });
     if (!res.ok) throw new Error("JSONBin fetch failed: " + res.status);
     const json = await res.json();
@@ -130,7 +133,8 @@ async function saveProducts() {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        "X-Master-Key": JSONBIN_API_KEY
+        "X-Master-Key": JSONBIN_API_KEY,
+        "X-Bin-Versioning": "false"
       },
       body: JSON.stringify(products)
     });
