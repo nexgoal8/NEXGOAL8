@@ -5,14 +5,14 @@
 const WHATSAPP_NUMBERS = ["263788018611", "263779998833"];
 const STORE_NAME = "NexGoal Soccer Wear";
 
-// ── JSONBin.io config ──────────────────────────────────────────────────────
-// 1. Create a free account at https://jsonbin.io
-// 2. Create a bin with your products array (or an empty [])
-// 3. Paste your Bin ID and API key below
-const JSONBIN_BIN_ID  = "6a42d550da38895dfe123a39";   // e.g. "6659f3e1acd3cb34a8560e23"
-const JSONBIN_API_KEY = "$2a$10$V/hPd2mOVYeSSCg3AkzxeueXRp8Dkomi8NKhQfWHVGZktj05qY66G";   // X-Master-Key from your account
-const JSONBIN_BASE    = "https://api.jsonbin.io/v3/b";
-const PRODUCTS_API    = `${JSONBIN_BASE}/${JSONBIN_BIN_ID}`;
+// ── GitHub storage config ──────────────────────────────────────────────────
+// Products are read directly from data/products.json in your GitHub repo.
+// No API key needed for the store page — it's just a public file read.
+const GH_OWNER  = "nexgoal8";
+const GH_REPO   = "NEXGOAL8";
+const GH_BRANCH = "main";
+const GH_PATH   = "data/products.json";
+const PRODUCTS_RAW_URL = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_BRANCH}/${GH_PATH}`;
 // ──────────────────────────────────────────────────────────────────────────
 
 let products = [];
@@ -22,16 +22,10 @@ let currentFilter = 'All';
 // ---------- Load Products ----------
 async function loadProducts() {
   try {
-    const res = await fetch(`${PRODUCTS_API}/latest`, {
-      headers: {
-        "X-Master-Key": JSONBIN_API_KEY,
-        "X-Bin-Meta": "false"
-      }
-    });
-    if (!res.ok) throw new Error("JSONBin fetch failed: " + res.status);
-    const json = await res.json();
-    // JSONBin wraps the payload in { record: <your data> }
-    const data = Array.isArray(json) ? json : (json.record || []);
+    // Cache-bust so visitors always see the latest saved products
+    const res = await fetch(`${PRODUCTS_RAW_URL}?t=${Date.now()}`);
+    if (!res.ok) throw new Error("GitHub fetch failed: " + res.status);
+    const data = await res.json();
     products = Array.isArray(data) ? data : Object.values(data || {});
     renderProducts(products);
   } catch (e) {

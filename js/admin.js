@@ -9,12 +9,16 @@ const ADMIN_CREDENTIALS = [
 
 const SESSION_KEY = "nexgoal_admin_session";
 
-// ── JSONBin.io config ──────────────────────────────────────────────────────
-// Must match the same values in app.js
-const JSONBIN_BIN_ID  = "6a42d550da38895dfe123a39";   // e.g. "6659f3e1acd3cb34a8560e23"
-const JSONBIN_API_KEY = "$2a$10$V/hPd2mOVYeSSCg3AkzxeueXRp8Dkomi8NKhQfWHVGZktj05qY66G";   // X-Master-Key from your account
-const JSONBIN_BASE    = "https://api.jsonbin.io/v3/b";
-const PRODUCTS_API    = `${JSONBIN_BASE}/${JSONBIN_BIN_ID}`;
+// ── GitHub storage config ──────────────────────────────────────────────────
+// Products are stored in data/products.json inside your GitHub repo.
+// The token below only has write access to this one repository.
+const GH_OWNER  = "nexgoal8";
+const GH_REPO   = "NEXGOAL8";
+const GH_BRANCH = "main";
+const GH_PATH   = "data/products.json";
+const GH_TOKEN  = "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";
+const GH_API_URL = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`;
+let currentFileSha = null; // needed by GitHub to update the file safely
 // ──────────────────────────────────────────────────────────────────────────
 
 let products = [];
@@ -86,27 +90,28 @@ function togglePassword() {
 }
 
 // =============================================
-//   PRODUCTS — JSONBin.io REST API
+//   PRODUCTS — GitHub Contents API
 // =============================================
 
 async function loadProducts() {
   try {
-    const res = await fetch(`${PRODUCTS_API}/latest`, {
+    const res = await fetch(`${GH_API_URL}?ref=${GH_BRANCH}&t=${Date.now()}`, {
       headers: {
-        "X-Master-Key": JSONBIN_API_KEY,
-        "X-Bin-Meta": "false"
+        "Authorization": `Bearer ${GH_TOKEN}`,
+        "Accept": "application/vnd.github+json"
       }
     });
-    if (!res.ok) throw new Error("JSONBin fetch failed: " + res.status);
+    if (!res.ok) throw new Error("GitHub fetch failed: " + res.status);
     const json = await res.json();
-    // JSONBin wraps the payload: { record: <your data>, metadata: {...} }
-    const data = Array.isArray(json) ? json : (json.record || []);
-    const loaded = Array.isArray(data) ? data : Object.values(data || {});
-    products = loaded;
+    currentFileSha = json.sha; // required to update the file later
+    // GitHub returns file content base64-encoded
+    const decoded = decodeURIComponent(escape(atob(json.content)));
+    const data = JSON.parse(decoded);
+    products = Array.isArray(data) ? data : Object.values(data || {});
     refreshAll();
   } catch (err) {
     showAdminToast("⚠️ Could not load products: " + err.message, "error");
-      products = [];
+    products = [];
     refreshAll();
   }
 }
@@ -119,16 +124,27 @@ async function saveProducts() {
   }
 
   try {
-    const res = await fetch(PRODUCTS_API, {
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(products, null, 2))));
+    const res = await fetch(GH_API_URL, {
       method: "PUT",
       headers: {
-        "Content-Type": "application/json",
-        "X-Master-Key": JSONBIN_API_KEY,
-        "X-Bin-Versioning": "false"
+        "Authorization": `Bearer ${GH_TOKEN}`,
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json"
       },
-      body: JSON.stringify(products)
+      body: JSON.stringify({
+        message: "Update products via admin panel",
+        content: content,
+        sha: currentFileSha,
+        branch: GH_BRANCH
+      })
     });
-    if (!res.ok) throw new Error("Save failed: " + res.status);
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody.message || ("Save failed: " + res.status));
+    }
+    const result = await res.json();
+    currentFileSha = result.content.sha; // update sha for next save
   } catch (err) {
     showAdminToast("⚠️ Could not save changes: " + err.message, "error");
   }
