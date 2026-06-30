@@ -5,14 +5,10 @@
 const WHATSAPP_NUMBERS = ["263788018611", "263779998833"];
 const STORE_NAME = "NexGoal Soccer Wear";
 
-// ── GitHub storage config ──────────────────────────────────────────────────
-// Products are read directly from data/products.json in your GitHub repo.
-// No API key needed for the store page — it's just a public file read.
-const GH_OWNER  = "nexgoal8";
-const GH_REPO   = "NEXGOAL8";
-const GH_BRANCH = "main";
-const GH_PATH   = "data/products.json";
-const PRODUCTS_RAW_URL = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_BRANCH}/${GH_PATH}`;
+// ── Supabase config ───────────────────────────────────────────────────────
+const SUPABASE_URL = "https://mqqaxxricqmchbfnkstb.supabase.co";
+const SUPABASE_KEY = "sb_publishable_-TV979VE5JGJAq92RG-N7w_EPdasICm";
+const PRODUCTS_API = `${SUPABASE_URL}/rest/v1/products`;
 // ──────────────────────────────────────────────────────────────────────────
 
 let products = [];
@@ -22,11 +18,15 @@ let currentFilter = 'All';
 // ---------- Load Products ----------
 async function loadProducts() {
   try {
-    // Cache-bust so visitors always see the latest saved products
-    const res = await fetch(`${PRODUCTS_RAW_URL}?t=${Date.now()}`);
-    if (!res.ok) throw new Error("GitHub fetch failed: " + res.status);
+    const res = await fetch(`${PRODUCTS_API}?order=id.asc`, {
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    if (!res.ok) throw new Error("Supabase fetch failed: " + res.status);
     const data = await res.json();
-    products = Array.isArray(data) ? data : Object.values(data || {});
+    products = Array.isArray(data) ? data : [];
     renderProducts(products);
   } catch (e) {
     console.warn('Could not load live products, using local data.', e);

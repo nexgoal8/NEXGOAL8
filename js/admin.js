@@ -9,16 +9,16 @@ const ADMIN_CREDENTIALS = [
 
 const SESSION_KEY = "nexgoal_admin_session";
 
-// ── GitHub storage config ──────────────────────────────────────────────────
-// Products are stored in data/products.json inside your GitHub repo.
-// The token below only has write access to this one repository.
-const GH_OWNER  = "nexgoal8";
-const GH_REPO   = "NEXGOAL8";
-const GH_BRANCH = "main";
-const GH_PATH   = "data/products.json";
-const GH_TOKEN  = "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";
-const GH_API_URL = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`;
-let currentFileSha = null; // needed by GitHub to update the file safely
+// ── Supabase config ───────────────────────────────────────────────────────
+const SUPABASE_URL = "https://mqqaxxricqmchbfnkstb.supabase.co";
+const SUPABASE_KEY = "sb_publishable_-TV979VE5JGJAq92RG-N7w_EPdasICm";
+const PRODUCTS_API = `${SUPABASE_URL}/rest/v1/products`;
+const SB_HEADERS = {
+  "apikey": SUPABASE_KEY,
+  "Authorization": `Bearer ${SUPABASE_KEY}`,
+  "Content-Type": "application/json",
+  "Prefer": "return=representation"
+};
 // ──────────────────────────────────────────────────────────────────────────
 
 let products = [];
@@ -90,24 +90,14 @@ function togglePassword() {
 }
 
 // =============================================
-//   PRODUCTS — GitHub Contents API
+//   PRODUCTS — Supabase REST API
 // =============================================
 
 async function loadProducts() {
   try {
-    const res = await fetch(`${GH_API_URL}?ref=${GH_BRANCH}&t=${Date.now()}`, {
-      headers: {
-        "Authorization": `Bearer ${GH_TOKEN}`,
-        "Accept": "application/vnd.github+json"
-      }
-    });
-    if (!res.ok) throw new Error("GitHub fetch failed: " + res.status);
-    const json = await res.json();
-    currentFileSha = json.sha; // required to update the file later
-    // GitHub returns file content base64-encoded
-    const decoded = decodeURIComponent(escape(atob(json.content)));
-    const data = JSON.parse(decoded);
-    products = Array.isArray(data) ? data : Object.values(data || {});
+    const res = await fetch(`${PRODUCTS_API}?order=id.asc`, { headers: SB_HEADERS });
+    if (!res.ok) throw new Error("Supabase fetch failed: " + res.status);
+    products = await res.json();
     refreshAll();
   } catch (err) {
     showAdminToast("⚠️ Could not load products: " + err.message, "error");
@@ -116,35 +106,41 @@ async function loadProducts() {
   }
 }
 
-async function saveProducts() {
-  // Safety check — never overwrite database with empty array unless user explicitly deleted all
-  if (products.length === 0) {
-    const confirmed = confirm("⚠️ You are about to clear ALL products from the database. Are you sure?");
-    if (!confirmed) return;
-  }
+// Supabase uses individual row operations — no full-array replace needed
+async function insertProduct(p) {
+  const { id, ...data } = p; // let Supabase auto-assign id
+  const res = await fetch(PRODUCTS_API, {
+    method: "POST", headers: SB_HEADERS, body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error((await res.json()).message || res.status);
+  const rows = await res.json();
+  return rows[0];
+}
 
+async function updateProduct(id, p) {
+  const res = await fetch(`${PRODUCTS_API}?id=eq.${id}`, {
+    method: "PATCH", headers: SB_HEADERS, body: JSON.stringify(p)
+  });
+  if (!res.ok) throw new Error((await res.json()).message || res.status);
+}
+
+async function deleteProduct(id) {
+  const res = await fetch(`${PRODUCTS_API}?id=eq.${id}`, {
+    method: "DELETE", headers: SB_HEADERS
+  });
+  if (!res.ok) throw new Error((await res.json()).message || res.status);
+}
+
+// Legacy saveProducts kept for import flow — rebuilds table from scratch
+async function saveProducts() {
   try {
-    const content = btoa(unescape(encodeURIComponent(JSON.stringify(products, null, 2))));
-    const res = await fetch(GH_API_URL, {
-      method: "PUT",
-      headers: {
-        "Authorization": `Bearer ${GH_TOKEN}`,
-        "Accept": "application/vnd.github+json",
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        message: "Update products via admin panel",
-        content: content,
-        sha: currentFileSha,
-        branch: GH_BRANCH
-      })
-    });
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody.message || ("Save failed: " + res.status));
+    // Delete all then re-insert
+    await fetch(`${PRODUCTS_API}?id=gte.0`, { method: "DELETE", headers: SB_HEADERS });
+    for (const p of products) {
+      const { id, ...data } = p;
+      await fetch(PRODUCTS_API, { method: "POST", headers: SB_HEADERS, body: JSON.stringify(data) });
     }
-    const result = await res.json();
-    currentFileSha = result.content.sha; // update sha for next save
+    await loadProducts();
   } catch (err) {
     showAdminToast("⚠️ Could not save changes: " + err.message, "error");
   }
@@ -333,15 +329,18 @@ function saveProduct() {
   const image = mainImage;
 
   if (editingId) {
-    const idx = products.findIndex(p => p.id === editingId);
-    products[idx] = { ...products[idx], name, price, category, stock, image, images, description: desc, featured, bestSeller };
-    showAdminToast("✅ Product updated!", "success");
+    try {
+      const updated = { name, price, category, stock, image, images, description: desc, featured, bestSeller };
+      await updateProduct(editingId, updated);
+      showAdminToast("✅ Product updated!", "success");
+    } catch(e) { showAdminToast("⚠️ Update failed: " + e.message, "error"); return; }
   } else {
-    const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
-    products.push({ id: newId, name, price, category, stock, image, images, description: desc, featured, bestSeller, rating: 4.5, reviews: 0 });
-    showAdminToast("✅ Product added!", "success");
+    try {
+      const newProduct = await insertProduct({ name, price, category, stock, image, images, description: desc, featured, bestSeller, rating: 4.5, reviews: 0 });
+      showAdminToast("✅ Product added!", "success");
+    } catch(e) { showAdminToast("⚠️ Add failed: " + e.message, "error"); return; }
   }
-  saveProducts(); refreshAll(); closeProductModal();
+  await loadProducts(); closeProductModal();
 }
 
 // =============================================
@@ -437,11 +436,14 @@ function confirmDelete(id) {
   document.getElementById("delete-confirm").classList.add("open");
 }
 function cancelDelete() { deleteTargetId = null; document.getElementById("delete-confirm").classList.remove("open"); }
-function executeDelete() {
+async function executeDelete() {
   if (!deleteTargetId) return;
-  products = products.filter(p => p.id !== deleteTargetId);
-  saveProducts(); refreshAll(); cancelDelete();
-  showAdminToast("🗑 Product deleted.", "success");
+  try {
+    await deleteProduct(deleteTargetId);
+    showAdminToast("🗑 Product deleted.", "success");
+  } catch(e) { showAdminToast("⚠️ Delete failed: " + e.message, "error"); return; }
+  cancelDelete();
+  await loadProducts();
 }
 
 // =============================================
@@ -468,19 +470,27 @@ function renderInventoryTable(filter = "") {
 
 function getStockBadge(stock) { const s = stock ?? 0; if (s === 0) return "badge-red"; if (s < 5) return "badge-gold"; return "badge-green"; }
 function getStockLabel(stock) { const s = stock ?? 0; if (s === 0) return "Out of Stock"; if (s < 5) return "Low Stock"; return "In Stock"; }
-function updateStock(id, val) {
+async function updateStock(id, val) {
   const p = products.find(x => x.id === id);
   if (!p) return;
-  p.stock = Math.max(0, parseInt(val) || 0);
-  saveProducts(); updateStats();
-  showAdminToast(`📦 Stock updated for ${p.name}`, "success");
+  const newStock = Math.max(0, parseInt(val) || 0);
+  try {
+    await updateProduct(id, { stock: newStock });
+    p.stock = newStock;
+    updateStats();
+    showAdminToast(`📦 Stock updated for ${p.name}`, "success");
+  } catch(e) { showAdminToast("⚠️ Stock update failed: " + e.message, "error"); }
 }
-function quickRestock(id) {
+async function quickRestock(id) {
   const p = products.find(x => x.id === id);
   if (!p) return;
-  p.stock = (p.stock ?? 0) + 10;
-  saveProducts(); renderInventoryTable(); updateStats();
-  showAdminToast(`📦 +10 units added to ${p.name}`, "success");
+  const newStock = (p.stock ?? 0) + 10;
+  try {
+    await updateProduct(id, { stock: newStock });
+    p.stock = newStock;
+    renderInventoryTable(); updateStats();
+    showAdminToast(`📦 +10 units added to ${p.name}`, "success");
+  } catch(e) { showAdminToast("⚠️ Restock failed: " + e.message, "error"); }
 }
 
 // =============================================
