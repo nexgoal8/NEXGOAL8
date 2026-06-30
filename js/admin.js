@@ -301,7 +301,7 @@ function closeProductModal() {
   resetPhotoPreview();
 }
 
-function saveProduct() {
+async function saveProduct() {
   const name       = document.getElementById("f-name").value.trim();
   const price      = parseFloat(document.getElementById("f-price").value);
   const category   = document.getElementById("f-category").value;
