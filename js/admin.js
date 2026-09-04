@@ -6,11 +6,11 @@
 // To change credentials: update email/password below
 // For production, use a proper backend (Firebase, Supabase, etc.)
 const ADMIN_CREDENTIALS = [
-  { email: "admin@ctcfashion.com",   password: "CTC@Admin2025",  name: "Admin",   role: "Administrator" },
-  { email: "manager@ctcfashion.com", password: "Manager@2025",   name: "Manager", role: "Store Manager"  }
+  { email: "admin@nexgoal.com",   password: "NexGoal@Admin2025",  name: "Admin",   role: "Administrator" },
+  { email: "manager@nexgoal.com", password: "Manager@NexGoal25",  name: "Manager", role: "Store Manager"  }
 ];
 
-const SESSION_KEY = "ctc_admin_session";
+const SESSION_KEY = "nexgoal_admin_session";
 const PRODUCTS_API = "https://nexgoal8-cd425-default-rtdb.firebaseio.com/products.json";
 let products = [];
 let editingId = null;
